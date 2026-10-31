@@ -131,4 +131,201 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- YENİ: Kamera uçuş animasyonu için GSAP -->
-    <script src="
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script>
+        setTimeout(() => {
+            const loader = document.getElementById('loading');
+            if(loader) loader.style.display = 'none';
+        }, 3000);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 12);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); 
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 4.5; 
+        controls.maxDistance = 30;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        sunLight.position.set(5, 3, 5);
+        scene.add(sunLight);
+
+        const earthRadius = 4;
+        const earthGeometry = new THREE.SphereGeometry(earthRadius, 128, 128); 
+        const textureLoader = new THREE.TextureLoader();
+        
+        const earthTexture = textureLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/planets/earth_atmos_2048.jpg', () => {
+            document.getElementById('loading').style.display = 'none';
+        });
+        const specularMap = textureLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/planets/earth_specular_2048.jpg');
+
+        const earthMaterial = new THREE.MeshPhongMaterial({
+            map: earthTexture,
+            specularMap: specularMap,
+            specular: new THREE.Color('grey'),
+            shininess: 30
+        });
+        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        scene.add(earth);
+
+        // Pin tasarımı
+        const markerGroup = new THREE.Group();
+        scene.add(markerGroup);
+        markerGroup.visible = false;
+        
+        const pinBodyGeo = new THREE.CylinderGeometry(0.01, 0.005, 0.3, 16);
+        const pinBodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const pinBody = new THREE.Mesh(pinBodyGeo, pinBodyMat);
+        pinBody.position.y = 0.15; 
+        pinBody.rotation.x = Math.PI / 2;
+        markerGroup.add(pinBody);
+        
+        const pinHeadGeo = new THREE.SphereGeometry(0.04, 32, 32);
+        const pinHeadMat = new THREE.MeshBasicMaterial({ color: 0x00ea8d });
+        const pinHead = new THREE.Mesh(pinHeadGeo, pinHeadMat);
+        pinHead.position.z = 0.3; 
+        markerGroup.add(pinHead);
+
+        // --- HESAPLAMA VE GÜNCELLEME FONKSİYONU ---
+        function updateSimulationData(lat, lon, locationNameStr, isFromSearch = false) {
+            document.getElementById('coords-val').innerText = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+            
+            // Yerçekimi Formülü
+            const g_e = 9.7803253359;
+            const k = 0.00193185265241;
+            const e2 = 0.00669437999014;
+            const latRad = lat * Math.PI / 180;
+            const sin2 = Math.pow(Math.sin(latRad), 2);
+            const gravity = g_e * ((1 + k * sin2) / Math.sqrt(1 - e2 * sin2));
+            
+            document.getElementById('gravity-val').innerText = `${gravity.toFixed(5)} m/s²`;
+
+            // Enlem/Boylamı 3D Uzay Koordinatına Çevirme
+            const phi = (90 - lat) * Math.PI / 180;
+            const theta = (lon + 90) * Math.PI / 180;
+            
+            const targetX = earthRadius * Math.sin(phi) * Math.sin(theta);
+            const targetY = earthRadius * Math.cos(phi);
+            const targetZ = earthRadius * Math.sin(phi) * Math.cos(theta);
+            const point = new THREE.Vector3(targetX, targetY, targetZ);
+
+            // Pimi yerleştir
+            markerGroup.position.copy(point);
+            markerGroup.lookAt(new THREE.Vector3(0,0,0)); 
+            markerGroup.rotation.x -= Math.PI / 2;
+            markerGroup.visible = true;
+
+            // Eğer arama kutusundan geldiyse kamerayı oraya uçur
+            if (isFromSearch) {
+                gsap.to(camera.position, {
+                    duration: 1.5,
+                    x: targetX * 2.2,
+                    y: targetY * 2.2,
+                    z: targetZ * 2.2,
+                    ease: "power2.inOut"
+                });
+                document.getElementById('location-val').innerText = locationNameStr;
+            } else {
+                // Tıklama ile geldiyse API'den konum adını çek
+                document.getElementById('location-val').innerText = "Konum aranıyor...";
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.address) {
+                            let ilce = data.address.town || data.address.county || data.address.village || "";
+                            let il = data.address.city || data.address.state || data.address.province || data.address.country || "Bilinmiyor";
+                            document.getElementById('location-val').innerText = ilce ? `${ilce}, ${il}` : il;
+                        } else {
+                            document.getElementById('location-val').innerText = "Okyanus / Tanımsız Bölge";
+                        }
+                    }).catch(() => document.getElementById('location-val').innerText = "Bağlantı Hatası");
+            }
+        }
+
+        // Tıklama Eventi
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        window.addEventListener('click', (event) => {
+            // UI paneline tıklandıysa dünyayı algılama
+            if (event.clientX < 360 && event.clientY < 400) return; 
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(earth);
+
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                const lat = 90 - (Math.acos(point.y / earthRadius) * 180 / Math.PI);
+                let lon = (Math.atan2(point.x, point.z) * 180 / Math.PI);
+                lon = lon - 90;
+                if(lon < -180) lon += 360;
+                updateSimulationData(lat, lon, "", false);
+            }
+        });
+
+        // Arama Eventi
+        const searchBtn = document.getElementById('search-btn');
+        const searchInput = document.getElementById('search-input');
+
+        function executeSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+            
+            document.getElementById('location-val').innerText = "Aranıyor...";
+            searchBtn.innerText = "...";
+            
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`)
+                .then(res => res.json())
+                .then(data => {
+                    searchBtn.innerText = "Bul";
+                    if (data.length > 0) {
+                        const lat = parseFloat(data[0].lat);
+                        const lon = parseFloat(data[0].lon);
+                        // Uzun ismi parçalayıp kısaltıyoruz (örn: Kadıköy, İstanbul)
+                        const shortName = data[0].display_name.split(',').slice(0, 2).join(', ');
+                        updateSimulationData(lat, lon, shortName, true);
+                    } else {
+                        document.getElementById('location-val').innerText = "Konum bulunamadı!";
+                    }
+                }).catch(() => {
+                    searchBtn.innerText = "Bul";
+                    document.getElementById('location-val').innerText = "Hata oluştu!";
+                });
+        }
+
+        searchBtn.addEventListener('click', executeSearch);
+        searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') executeSearch(); });
+
+        // Animasyon ve Render Döngüsü
+        function animate() {
+            requestAnimationFrame(animate);
+            if (markerGroup.visible) {
+                const distance = camera.position.distanceTo(earth.position);
+                const scale = Math.max(0.3, distance / 12); 
+                markerGroup.scale.set(scale, scale, scale);
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
