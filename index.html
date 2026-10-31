@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dünya Yerçekimi Simülasyonu</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 20, 30, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            width: 320px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: #00d2ff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+        .data-row {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        .data-label {
+            font-size: 0.8rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .data-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #fff;
+        }
+        .highlight {
+            color: #00ea8d;
+            font-size: 1.4rem;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            color: #fff;
+            background: rgba(0,0,0,0.8);
+            padding: 15px 30px;
+            border-radius: 20px;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+        .instruction {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Dünya Yükleniyor...</div>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-panel">
+        <h2>Yerçekimi Analizi</h2>
+        
+        <div class="data-row">
+            <span class="data-label">Koordinatlar</span>
+            <span class="data-value" id="coords-val">Seçim Bekleniyor...</span>
+        </div>
+        
+        <div class="data-row">
+            <span class="data-label">Konum (İlçe / İl)</span>
+            <span class="data-value" id="location-val">-</span>
+        </div>
+        
+        <div class="data-row">
+            <span class="data-label">Yerçekimi İvmesi (g)</span>
+            <span class="data-value highlight" id="gravity-val">
