@@ -167,7 +167,7 @@
             controls.minDistance = 5; 
             controls.maxDistance = 25;
             
-            // ÇÖZÜM BURADA: Dünya dönmüyor, KAMERA dönüyor. Böylece koordinatlar milimi milimine aynı kalır!
+            // Kamera dönüşü aktif, böylece matematiksel koordinatlar ASLA kaymaz
             controls.autoRotate = true;
             controls.autoRotateSpeed = 1.0;
         } catch(e) {}
@@ -251,8 +251,9 @@
                 `g = 9.7803 &middot; [ (1 + 0.0019 &middot; <span>${sin2.toFixed(4)}</span>) / &radic;(1 - 0.0066 &middot; <span>${sin2.toFixed(4)}</span>) ] <br>
                  g = <span>${gravity.toFixed(5)}</span> m/s&sup2;`;
 
+            // --- YENİ MATEMATİK: Kaplama ile koordinatları %100 senkronize eden kısım ---
             const phi = (90 - lat) * Math.PI / 180;
-            const theta = (lon + 90) * Math.PI / 180;
+            const theta = (180 - lon) * Math.PI / 180; // Düzeltildi!
             
             const targetX = earthRadius * Math.sin(phi) * Math.sin(theta);
             const targetY = earthRadius * Math.cos(phi);
@@ -289,7 +290,7 @@
         window.addEventListener('click', (event) => {
             if (event.clientX < 380 || event.clientX > window.innerWidth - 380) return; 
 
-            // Kullanıcı haritaya tıkladığında kameranın dönmesini durdur ki inceleyebilsin
+            // Kullanıcı tıkladığında kamera dönüşü durur
             if(controls) controls.autoRotate = false;
 
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -298,10 +299,17 @@
             const intersects = raycaster.intersectObject(earth);
 
             if (intersects.length > 0) {
-                const point = intersects[0].point;
-                const lat = 90 - (Math.acos(point.y / earthRadius) * 180 / Math.PI);
-                let lon = (Math.atan2(point.x, point.z) * 180 / Math.PI);
-                lon = lon - 90; if(lon < -180) lon += 360;
+                // Dokunulan noktanın objeye göre (local) koordinatını al (Garanti yöntem)
+                const localPoint = earth.worldToLocal(intersects[0].point.clone());
+                
+                // --- YENİ MATEMATİK: 3D noktadan Enlem/Boylam çıkarımı (Senkronize) ---
+                const lat = 90 - (Math.acos(localPoint.y / earthRadius) * 180 / Math.PI);
+                let lon = 180 - (Math.atan2(localPoint.x, localPoint.z) * 180 / Math.PI); // Düzeltildi!
+                
+                // Normalizasyon (-180 ile +180 arası)
+                if(lon > 180) lon -= 360;
+                if(lon < -180) lon += 360;
+
                 updateSimulationData(lat, lon, "", false);
             }
         });
@@ -310,7 +318,6 @@
             const query = document.getElementById('search-input').value.trim();
             if (!query) return;
             
-            // Arama yapıldığında kameranın oto-dönüşünü durdur
             if(controls) controls.autoRotate = false;
             
             document.getElementById('location-val').innerText = "Uydu Bağlanıyor...";
@@ -334,7 +341,6 @@
             requestAnimationFrame(animate);
             if(controls) controls.update();
             
-            // Nişangah radarı dönme animasyonu
             if(markerGroup.visible) {
                 reticleRing.rotation.z += 0.05;
             }
